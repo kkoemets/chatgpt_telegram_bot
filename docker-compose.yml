@@ -5,6 +5,7 @@ services:
     container_name: mongo
     image: mongo:latest
     restart: always
+    command: mongod --bind_ip_all --port ${MONGODB_PORT:-27017}
     ports:
       - 127.0.0.1:${MONGODB_PORT:-27017}:${MONGODB_PORT:-27017}
     volumes:
