@@ -6,6 +6,7 @@ new_dialog_timeout: 600  # new dialog starts after timeout (in seconds)
 return_n_generated_images: 1
 n_chat_modes_per_page: 5
 enable_message_streaming: true  # if set, messages will be shown to user word-by-word
+enabled_chat_models: ["assistant", "code_assistant", "artist", "money_maker", "travel_guide", "movie_expert"]
 
 # prices
 chatgpt_price_per_1000_tokens: 0.002
