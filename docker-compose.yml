@@ -2,7 +2,7 @@ version: "3"
 
 services:
   mongo:
-    container_name: mongo
+    container_name: ${CHAT_GPT_MONGO_CONTAINER_NAME:-mongo}
     image: mongo:latest
     restart: always
     command: mongod --bind_ip_all --port ${MONGODB_PORT:-27017}
@@ -13,7 +13,7 @@ services:
     # TODO: add auth
 
   chatgpt_telegram_bot:
-    container_name: chatgpt_telegram_bot
+    container_name: ${CHAT_GPT_CONTAINER_NAME:-chatgpt_telegram_bot}
     command: python3 bot/bot.py
     restart: always
     build:
@@ -23,13 +23,13 @@ services:
       - mongo
 
   mongo_express:
-    container_name: mongo-express
+    container_name: ${CHAT_GPT_MONGO_EXPRESS_CONTAINER_NAME:-mongo-express}
     image: mongo-express:latest
     restart: always
     ports:
       - 127.0.0.1:${MONGO_EXPRESS_PORT:-8081}:${MONGO_EXPRESS_PORT:-8081}
     environment:
-      - ME_CONFIG_MONGODB_SERVER=mongo
+      - ME_CONFIG_MONGODB_SERVER=${CHAT_GPT_MONGO_CONTAINER_NAME:-mongo}
       - ME_CONFIG_MONGODB_PORT=${MONGODB_PORT:-27017}
       - ME_CONFIG_MONGODB_ENABLE_ADMIN=false
       - ME_CONFIG_MONGODB_AUTH_DATABASE=chatgpt_telegram_bot
