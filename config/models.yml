@@ -1,4 +1,4 @@
-available_text_models: ["gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "text-davinci-003"]
+available_text_models: [ "gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "text-davinci-003", "gpt-4-1106-preview" ]
 
 info:
   gpt-3.5-turbo:
@@ -40,6 +40,19 @@ info:
       Fast: 2
       Cheap: 2
 
+  gpt-4-1106-preview:
+    type: chat_completion
+    name: GPT-4-1106-preview
+    description: GPT-4 is the <b>smartest</b> and most advanced model in the world. This is the turbo version. Data up to April 2023 and a 128k context window.
+
+    price_per_1000_input_tokens: 0.01
+    price_per_1000_output_tokens: 0.03
+
+    scores:
+      Smart: 5
+      Fast: 3
+      Cheap: 3
+
   text-davinci-003:
     type: completion
     name: GPT-3.5
@@ -54,8 +67,8 @@ info:
       Cheap: 3
 
   dalle-2:
-     type: image
-     price_per_1_image: 0.018  # 512x512
+    type: image
+    price_per_1_image: 0.018  # 512x512
 
   whisper:
     type: audio
