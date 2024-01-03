@@ -3,15 +3,10 @@ import html
 import io
 import json
 import logging
-import logging
-import tempfile
 import traceback
 from datetime import datetime
-from datetime import datetime
-from pathlib import Path
 
 import openai
-import pydub
 import telegram
 from telegram import (
     Update,
