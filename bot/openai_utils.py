@@ -24,7 +24,8 @@ OPENAI_COMPLETION_OPTIONS = {
 
 class ChatGPT:
     def __init__(self, model="gpt-3.5-turbo"):
-        assert model in {"text-davinci-003", "gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4-1106-preview", "gpt-4-vision-preview"}, f"Unknown model: {model}"
+        assert model in {"text-davinci-003", "gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4-1106-preview",
+                         "gpt-4-vision-preview", "gpt-4o"}, f"Unknown model: {model}"
         self.model = model
 
     async def send_message(self, message, dialog_messages=[], chat_mode="assistant"):
@@ -35,7 +36,8 @@ class ChatGPT:
         answer = None
         while answer is None:
             try:
-                if self.model in {"gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4-1106-preview", "gpt-4-vision-preview"}:
+                if self.model in {"gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4-1106-preview",
+                                  "gpt-4-vision-preview", "gpt-4o"}:
                     messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
 
                     r = await openai.ChatCompletion.acreate(
@@ -77,7 +79,7 @@ class ChatGPT:
         answer = None
         while answer is None:
             try:
-                if self.model in {"gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4","gpt-4o", "gpt-4-1106-preview"}:
+                if self.model in {"gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4","gpt-4o", "gpt-4-1106-preview", "gpt-4o"}:
                     messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
 
                     r_gen = await openai.ChatCompletion.acreate(
@@ -130,11 +132,11 @@ class ChatGPT:
             n_input_tokens, n_output_tokens), n_first_dialog_messages_removed  # sending final answer
 
     async def send_vision_message(
-        self,
-        message,
-        dialog_messages=[],
-        chat_mode="assistant",
-        image_buffer: BytesIO = None,
+            self,
+            message,
+            dialog_messages=[],
+            chat_mode="assistant",
+            image_buffer: BytesIO = None,
     ):
         n_dialog_messages_before = len(dialog_messages)
         answer = None
@@ -178,11 +180,11 @@ class ChatGPT:
         )
 
     async def send_vision_message_stream(
-        self,
-        message,
-        dialog_messages=[],
-        chat_mode="assistant",
-        image_buffer: BytesIO = None,
+            self,
+            message,
+            dialog_messages=[],
+            chat_mode="assistant",
+            image_buffer: BytesIO = None,
     ):
         n_dialog_messages_before = len(dialog_messages)
         answer = None
@@ -212,7 +214,7 @@ class ChatGPT:
                                 messages, answer, model=self.model
                             )
                             n_first_dialog_messages_removed = (
-                                n_dialog_messages_before - len(dialog_messages)
+                                    n_dialog_messages_before - len(dialog_messages)
                             )
                             yield "not_finished", answer, (
                                 n_input_tokens,
@@ -306,6 +308,9 @@ class ChatGPT:
         elif model == "gpt-4-1106-preview":
             tokens_per_message = 3
             tokens_per_name = 1
+        elif model == "gpt-4o":
+            tokens_per_message = 3
+            tokens_per_name = 1
         elif model == "gpt-4-1106-preview":
             tokens_per_message = 3
             tokens_per_name = 1
@@ -335,7 +340,6 @@ class ChatGPT:
                         n_input_tokens += len(encoding.encode(message["text"]))
                     elif message["type"] == "image_url":
                         pass
-
 
         n_input_tokens += 2
 
