@@ -482,9 +482,6 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         if current_model == "gpt-4-vision-preview" or current_model == "gpt-4o" or update.message.photo is not None and len(
                 update.message.photo) > 0:
 
-            logger.error(current_model)
-            # What is this? ^^^
-
             if current_model != "gpt-4o" and current_model != "gpt-4-vision-preview":
                 current_model = "gpt-4o"
                 db.set_user_attribute(user_id, "current_model", "gpt-4o")
@@ -590,7 +587,9 @@ async def new_dialog_handle(update: Update, context: CallbackContext):
 
     user_id = update.message.from_user.id
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
-    db.set_user_attribute(user_id, "current_model", "gpt-3.5-turbo")
+
+    if db.get_user_attribute(user_id, "current_model") is None:
+        db.set_user_attribute(user_id, "current_model", "gpt-4o")
 
     db.start_new_dialog(user_id)
     await update.message.reply_text("Starting new dialog ✅")
