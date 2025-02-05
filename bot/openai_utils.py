@@ -23,9 +23,7 @@ OPENAI_COMPLETION_OPTIONS = {
 
 
 class ChatGPT:
-    def __init__(self, model="gpt-3.5-turbo"):
-        assert model in {"text-davinci-003", "gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4-1106-preview",
-                         "gpt-4-vision-preview", "gpt-4o"}, f"Unknown model: {model}"
+    def __init__(self, model="gpt-4o"):
         self.model = model
 
     async def send_message(self, message, dialog_messages=[], chat_mode="assistant"):
@@ -36,28 +34,17 @@ class ChatGPT:
         answer = None
         while answer is None:
             try:
-                if self.model in {"gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4", "gpt-4o", "gpt-4-1106-preview",
-                                  "gpt-4-vision-preview", "gpt-4o"}:
-                    messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
+                messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
 
-                    r = await openai.ChatCompletion.acreate(
-                        model=self.model,
-                        messages=messages,
-                        **OPENAI_COMPLETION_OPTIONS
-                    )
-                    answer = r.choices[0].message["content"]
-                elif self.model == "text-davinci-003":
-                    prompt = self._generate_prompt(message, dialog_messages, chat_mode)
-                    r = await openai.Completion.acreate(
-                        engine=self.model,
-                        prompt=prompt,
-                        **OPENAI_COMPLETION_OPTIONS
-                    )
-                    answer = r.choices[0].text
-                else:
-                    raise ValueError(f"Unknown model: {self.model}")
+                r = await openai.ChatCompletion.acreate(
+                    model=self.model,
+                    messages=messages,
+                    **OPENAI_COMPLETION_OPTIONS
+                )
 
+                answer = r.choices[0].message["content"]
                 answer = self._postprocess_answer(answer)
+
                 n_input_tokens, n_output_tokens = r.usage.prompt_tokens, r.usage.completion_tokens
             except openai.error.InvalidRequestError as e:  # too many tokens
                 if len(dialog_messages) == 0:
@@ -79,46 +66,27 @@ class ChatGPT:
         answer = None
         while answer is None:
             try:
-                if self.model in {"gpt-3.5-turbo-16k", "gpt-3.5-turbo", "gpt-4","gpt-4o", "gpt-4-1106-preview", "gpt-4o"}:
-                    messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
+                messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
 
-                    r_gen = await openai.ChatCompletion.acreate(
-                        model=self.model,
-                        messages=messages,
-                        stream=True,
-                        **OPENAI_COMPLETION_OPTIONS
-                    )
+                r_gen = await openai.ChatCompletion.acreate(
+                    model=self.model,
+                    messages=messages,
+                    stream=True,
+                    **OPENAI_COMPLETION_OPTIONS
+                )
 
-                    answer = ""
-                    async for r_item in r_gen:
-                        delta = r_item.choices[0].delta
+                answer = ""
+                async for r_item in r_gen:
+                    delta = r_item.choices[0].delta
 
-                        if "content" in delta:
-                            answer += delta.content
-                            n_input_tokens, n_output_tokens = self._count_tokens_from_messages(messages, answer,
-                                                                                               model=self.model)
-                            n_first_dialog_messages_removed = 0
+                    if "content" in delta:
+                        answer += delta.content
+                        n_input_tokens, n_output_tokens = self._count_tokens_from_messages(messages, answer,
+                                                                                           model=self.model)
+                        n_first_dialog_messages_removed = 0
 
-                            yield "not_finished", answer, (
-                                n_input_tokens, n_output_tokens), n_first_dialog_messages_removed
-
-                elif self.model == "text-davinci-003":
-                    prompt = self._generate_prompt(message, dialog_messages, chat_mode)
-                    r_gen = await openai.Completion.acreate(
-                        engine=self.model,
-                        prompt=prompt,
-                        stream=True,
-                        **OPENAI_COMPLETION_OPTIONS
-                    )
-
-                    answer = ""
-                    async for r_item in r_gen:
-                        answer += r_item.choices[0].text
-                        n_input_tokens, n_output_tokens = self._count_tokens_from_prompt(prompt, answer,
-                                                                                         model=self.model)
-                        n_first_dialog_messages_removed = n_dialog_messages_before - len(dialog_messages)
-                        yield "not_finished", answer, (n_input_tokens, n_output_tokens), n_first_dialog_messages_removed
-
+                        yield "not_finished", answer, (
+                            n_input_tokens, n_output_tokens), n_first_dialog_messages_removed
                 answer = self._postprocess_answer(answer)
 
             except openai.error.InvalidRequestError as e:  # too many tokens
@@ -293,35 +261,16 @@ class ChatGPT:
         answer = answer.strip()
         return answer
 
-    def _count_tokens_from_messages(self, messages, answer, model="gpt-3.5-turbo"):
+    def _count_tokens_from_messages(self, messages, answer, model="gpt-4o"):
         encoding = tiktoken.encoding_for_model(model)
 
-        if model == "gpt-3.5-turbo-16k":
-            tokens_per_message = 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
-            tokens_per_name = -1  # if there's a name, the role is omitted
-        elif model == "gpt-3.5-turbo":
-            tokens_per_message = 4
-            tokens_per_name = -1
-        elif model == "gpt-4":
+        if model == "gpt-4-vision-preview":
             tokens_per_message = 3
-            tokens_per_name = 1
-        elif model == "gpt-4-1106-preview":
-            tokens_per_message = 3
-            tokens_per_name = 1
         elif model == "gpt-4o":
             tokens_per_message = 3
-            tokens_per_name = 1
-        elif model == "gpt-4-1106-preview":
-            tokens_per_message = 3
-            tokens_per_name = 1
-        elif model == "gpt-4-vision-preview":
-            tokens_per_message = 3
-            tokens_per_name = 1
-        elif model == "gpt-4o":
-            tokens_per_message = 3
-            tokens_per_name = 1
         else:
-            raise ValueError(f"Unknown model: {model}")
+            print(f"Cannot count tokens for model {model}")
+            tokens_per_message = 0
 
         # input
         n_input_tokens = 0
@@ -345,14 +294,6 @@ class ChatGPT:
 
         # output
         n_output_tokens = 1 + len(encoding.encode(answer))
-
-        return n_input_tokens, n_output_tokens
-
-    def _count_tokens_from_prompt(self, prompt, answer, model="text-davinci-003"):
-        encoding = tiktoken.encoding_for_model(model)
-
-        n_input_tokens = len(encoding.encode(prompt)) + 1
-        n_output_tokens = len(encoding.encode(answer))
 
         return n_input_tokens, n_output_tokens
 

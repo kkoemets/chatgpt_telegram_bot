@@ -91,17 +91,6 @@ async def register_user_if_not_exists(update: Update, context: CallbackContext, 
     if db.get_user_attribute(user.id, "current_model") is None:
         db.set_user_attribute(user.id, "current_model", config.models["available_text_models"][0])
 
-    # back compatibility for n_used_tokens field
-    n_used_tokens = db.get_user_attribute(user.id, "n_used_tokens")
-    if isinstance(n_used_tokens, int) or isinstance(n_used_tokens, float):  # old format
-        new_n_used_tokens = {
-            "gpt-3.5-turbo": {
-                "n_input_tokens": 0,
-                "n_output_tokens": n_used_tokens
-            }
-        }
-        db.set_user_attribute(user.id, "n_used_tokens", new_n_used_tokens)
-
     # voice message transcription
     if db.get_user_attribute(user.id, "n_transcribed_seconds") is None:
         db.set_user_attribute(user.id, "n_transcribed_seconds", 0.0)
