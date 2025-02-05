@@ -1,4 +1,4 @@
-available_text_models: ["gpt-4o"]
+available_text_models: ["gpt-4o", "o3-mini"]
 
 info:
   gpt-4-vision-preview:
@@ -8,6 +8,13 @@ info:
 
     price_per_1000_input_tokens: 0.01
     price_per_1000_output_tokens: 0.03
+    model_options:
+      temperature: 0.7
+      max_tokens: 1000
+      top_p: 1.0
+      frequency_penalty: 0
+      presence_penalty: 0
+      timeout: 60
 
     scores:
       smart: 5
@@ -17,9 +24,33 @@ info:
     type: chat_completion
     name: GPT-4o
     description: GPT-4o is a special variant of GPT-4 designed for optimal performance and accuracy. Suitable for complex and detailed tasks.
+    model_options:
+      temperature: 0.7
+      max_tokens: 1000
+      top_p: 1.0
+      frequency_penalty: 0.0
+      presence_penalty: 0.0
+      timeout: 60.0
 
-    price_per_1000_input_tokens: 0.03
-    price_per_1000_output_tokens: 0.06
+    price_per_1000_input_tokens: 0.0025
+    price_per_1000_output_tokens: 0.01
+
+    scores:
+      smart: 5
+      fast: 2
+      cheap: 2
+
+  o3-mini:
+    type: chat_completion
+    name: o3-mini
+    description: OpenAI o3 is a reflective generative pre-trained transformer (GPT) model developed by OpenAI as a successor to OpenAI o1. It is designed to devote additional deliberation time when addressing questions that require step-by-step logical reasoning.
+    model_options:
+      max_completion_tokens: 100000
+      reasoning_effort: high
+      timeout: 60.0
+
+    price_per_1000_input_tokens: 0.0011
+    price_per_1000_output_tokens: 0.0044
 
     scores:
       smart: 5

@@ -1,30 +1,24 @@
+
 import base64
 from io import BytesIO
 import openai
-import tiktoken
+from openai import AsyncOpenAI
 
 import config
-import logging
-
-# setup openai
-openai.api_key = config.openai_api_key
+aclient = AsyncOpenAI(api_key=config.openai_api_key)
 if config.openai_api_base is not None:
     openai.api_base = config.openai_api_base
-logger = logging.getLogger(__name__)
+import tiktoken
+from openai import OpenAIError
+import logging
 
-OPENAI_COMPLETION_OPTIONS = {
-    "temperature": 0.7,
-    "max_tokens": 1000,
-    "top_p": 1,
-    "frequency_penalty": 0,
-    "presence_penalty": 0,
-    "request_timeout": 60.0,
-}
+logger = logging.getLogger(__name__)
 
 
 class ChatGPT:
-    def __init__(self, model="gpt-4o"):
+    def __init__(self, model="gpt-4o", model_options={}):
         self.model = model
+        self.model_options = model_options
 
     async def send_message(self, message, dialog_messages=[], chat_mode="assistant"):
         if chat_mode not in config.chat_modes.keys():
@@ -35,18 +29,17 @@ class ChatGPT:
         while answer is None:
             try:
                 messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
-
-                r = await openai.ChatCompletion.acreate(
+                r = await aclient.chat.completions.create(
                     model=self.model,
                     messages=messages,
-                    **OPENAI_COMPLETION_OPTIONS
+                    **self.model_options
                 )
 
-                answer = r.choices[0].message["content"]
+                answer = r.choices[0].message.content
                 answer = self._postprocess_answer(answer)
 
                 n_input_tokens, n_output_tokens = r.usage.prompt_tokens, r.usage.completion_tokens
-            except openai.error.InvalidRequestError as e:  # too many tokens
+            except OpenAIError as e:  # too many tokens
                 if len(dialog_messages) == 0:
                     raise ValueError(
                         "Dialog messages is reduced to zero, but still has too many tokens to make completion") from e
@@ -67,29 +60,31 @@ class ChatGPT:
         while answer is None:
             try:
                 messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
-
-                r_gen = await openai.ChatCompletion.acreate(
+                r_gen = await aclient.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     stream=True,
-                    **OPENAI_COMPLETION_OPTIONS
+                    **self.model_options
                 )
 
                 answer = ""
                 async for r_item in r_gen:
                     delta = r_item.choices[0].delta
+                    # Check if attribute exists, otherwise use get
+                    if hasattr(delta, "content"):
+                        content_piece = "" if delta.content is None else delta.content
+                    else:
+                        content_piece = delta.get("content", "")
+                    if content_piece != "":
+                        answer += content_piece
+                        n_input_tokens, n_output_tokens = self._count_tokens_from_messages(messages, answer, model=self.model)
 
-                    if "content" in delta:
-                        answer += delta.content
-                        n_input_tokens, n_output_tokens = self._count_tokens_from_messages(messages, answer,
-                                                                                           model=self.model)
                         n_first_dialog_messages_removed = 0
 
                         yield "not_finished", answer, (
                             n_input_tokens, n_output_tokens), n_first_dialog_messages_removed
                 answer = self._postprocess_answer(answer)
-
-            except openai.error.InvalidRequestError as e:  # too many tokens
+            except OpenAIError as e:  # too many tokens
                 if len(dialog_messages) == 0:
                     raise e
 
@@ -110,14 +105,14 @@ class ChatGPT:
         answer = None
         while answer is None:
             try:
-                if self.model == "gpt-4-vision-preview" or self.model == "gpt-4o":
+                if self.model == "gpt-4o":
                     messages = self._generate_prompt_messages(
                         message, dialog_messages, chat_mode, image_buffer
                     )
-                    r = await openai.ChatCompletion.acreate(
+                    r = await aclient.chat.completions.create(
                         model=self.model,
                         messages=messages,
-                        **OPENAI_COMPLETION_OPTIONS
+                        **self.model_options
                     )
                     answer = r.choices[0].message.content
                 else:
@@ -128,7 +123,7 @@ class ChatGPT:
                     r.usage.prompt_tokens,
                     r.usage.completion_tokens,
                 )
-            except openai.error.InvalidRequestError as e:  # too many tokens
+            except OpenAIError as e:  # too many tokens
                 if len(dialog_messages) == 0:
                     raise ValueError(
                         "Dialog messages is reduced to zero, but still has too many tokens to make completion"
@@ -158,40 +153,32 @@ class ChatGPT:
         answer = None
         while answer is None:
             try:
-                if self.model == "gpt-4-vision-preview" or self.model == "gpt-4o":
+                if self.model == "gpt-4o":
                     messages = self._generate_prompt_messages(
                         message, dialog_messages, chat_mode, image_buffer
                     )
 
-                    r_gen = await openai.ChatCompletion.acreate(
+                    r_gen = await aclient.chat.completions.create(
                         model=self.model,
                         messages=messages,
                         stream=True,
-                        **OPENAI_COMPLETION_OPTIONS,
+                        **self.model_options
                     )
-
                     answer = ""
                     async for r_item in r_gen:
                         delta = r_item.choices[0].delta
-                        if "content" in delta:
-                            answer += delta.content
-                            (
-                                n_input_tokens,
-                                n_output_tokens,
-                            ) = self._count_tokens_from_messages(
-                                messages, answer, model=self.model
-                            )
-                            n_first_dialog_messages_removed = (
-                                    n_dialog_messages_before - len(dialog_messages)
-                            )
-                            yield "not_finished", answer, (
-                                n_input_tokens,
-                                n_output_tokens,
-                            ), n_first_dialog_messages_removed
+                        if hasattr(delta, "content"):
+                            content_piece =  "" if delta.content is None else delta.content
+                        else:
+                            content_piece = delta.get("content", "")
 
+                        if content_piece != "":
+                            answer += content_piece
+                            n_input_tokens, n_output_tokens = self._count_tokens_from_messages(messages, answer, model=self.model)
+                            n_first_dialog_messages_removed = n_dialog_messages_before - len(dialog_messages)
+                            yield "not_finished", answer, (n_input_tokens, n_output_tokens), n_first_dialog_messages_removed
                 answer = self._postprocess_answer(answer)
-
-            except openai.error.InvalidRequestError as e:  # too many tokens
+            except OpenAIError as e:  # too many tokens
                 if len(dialog_messages) == 0:
                     raise e
                 # forget first message in dialog_messages
@@ -219,7 +206,7 @@ class ChatGPT:
 
         return prompt
 
-    def _encode_image(self, image_buffer: BytesIO) -> bytes:
+    def _encode_image(self, image_buffer: BytesIO) -> str:
         return base64.b64encode(image_buffer.read()).decode("utf-8")
 
     def _generate_prompt_messages(self, message, dialog_messages, chat_mode, image_buffer: BytesIO = None):
@@ -232,26 +219,16 @@ class ChatGPT:
             messages.append({"role": "assistant", "content": dialog_message["bot"]})
 
         if image_buffer is not None:
-            messages.append(
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": message,
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url" : {
-
-                                "url": f"data:image/jpeg;base64,{self._encode_image(image_buffer)}",
-                                "detail":"high"
-                            }
-                        }
-                    ]
-                }
-
-            )
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": message},
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:image/jpeg;base64,{self._encode_image(image_buffer)}",
+                        "detail": "high"
+                    }}
+                ]
+            })
         else:
             messages.append({"role": "user", "content": message})
 
@@ -262,15 +239,16 @@ class ChatGPT:
         return answer
 
     def _count_tokens_from_messages(self, messages, answer, model="gpt-4o"):
-        encoding = tiktoken.encoding_for_model(model)
-
-        if model == "gpt-4-vision-preview":
+        if model == "gpt-4o":
+            encoding = tiktoken.encoding_for_model(model)
             tokens_per_message = 3
-        elif model == "gpt-4o":
+        elif model == "o3-mini":
+            encoding = tiktoken.encoding_for_model("gpt-4o")
             tokens_per_message = 3
         else:
-            print(f"Cannot count tokens for model {model}")
+            encoding = tiktoken.encoding_for_model(model)
             tokens_per_message = 0
+            print(f"Cannot count tokens for model {model}")
 
         # input
         n_input_tokens = 0
@@ -299,16 +277,16 @@ class ChatGPT:
 
 
 async def transcribe_audio(audio_file) -> str:
-    r = await openai.Audio.atranscribe("whisper-1", audio_file)
-    return r["text"] or ""
+    r = await aclient.audio.transcribe("whisper-1", audio_file)
+    return r.get("text", "") or ""
 
 
 async def generate_images(prompt, n_images=4, size="512x512"):
-    r = await openai.Image.acreate(prompt=prompt, n=n_images, size=size)
+    r = await aclient.images.generate(prompt=prompt, n=n_images, size=size)
     image_urls = [item.url for item in r.data]
     return image_urls
 
 
 async def is_content_acceptable(prompt):
-    r = await openai.Moderation.acreate(input=prompt)
+    r = await aclient.moderations.create(input=prompt)
     return not all(r.results[0].categories.values())
