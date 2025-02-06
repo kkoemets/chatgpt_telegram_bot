@@ -22,7 +22,7 @@ enabled_chat_models = config_yaml.get("enabled_chat_models", ["assistant"])
 return_n_generated_images = config_yaml.get("return_n_generated_images", 1)
 image_size = config_yaml.get("image_size", "512x512")
 n_chat_modes_per_page = config_yaml.get("n_chat_modes_per_page", 5)
-mongodb_uri = f"mongodb://mongo:{config_env['MONGODB_PORT']}"
+mongodb_uri = f"mongodb://{config_env['MONGODB_ENV']}:{config_env['MONGODB_PORT']}"
 
 # chat_modes
 
