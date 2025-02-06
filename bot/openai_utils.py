@@ -20,37 +20,6 @@ class ChatGPT:
         self.model = model
         self.model_options = model_options
 
-    async def send_message(self, message, dialog_messages=[], chat_mode="assistant"):
-        if chat_mode not in config.chat_modes.keys():
-            raise ValueError(f"Chat mode {chat_mode} is not supported")
-
-        n_dialog_messages_before = len(dialog_messages)
-        answer = None
-        while answer is None:
-            try:
-                messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
-                r = await aclient.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    **self.model_options
-                )
-
-                answer = r.choices[0].message.content
-                answer = self._postprocess_answer(answer)
-
-                n_input_tokens, n_output_tokens = r.usage.prompt_tokens, r.usage.completion_tokens
-            except OpenAIError as e:  # too many tokens
-                if len(dialog_messages) == 0:
-                    raise ValueError(
-                        "Dialog messages is reduced to zero, but still has too many tokens to make completion") from e
-
-                # forget first message in dialog_messages
-                dialog_messages = dialog_messages[1:]
-
-        n_first_dialog_messages_removed = n_dialog_messages_before - len(dialog_messages)
-
-        return answer, (n_input_tokens, n_output_tokens), n_first_dialog_messages_removed
-
     async def send_message_stream(self, message, dialog_messages=[], chat_mode="assistant"):
         if chat_mode not in config.chat_modes.keys():
             raise ValueError(f"Chat mode {chat_mode} is not supported")
@@ -93,54 +62,6 @@ class ChatGPT:
 
         yield "finished", answer, (
             n_input_tokens, n_output_tokens), n_first_dialog_messages_removed  # sending final answer
-
-    async def send_vision_message(
-            self,
-            message,
-            dialog_messages=[],
-            chat_mode="assistant",
-            image_buffer: BytesIO = None,
-    ):
-        n_dialog_messages_before = len(dialog_messages)
-        answer = None
-        while answer is None:
-            try:
-                if self.model == "gpt-4o":
-                    messages = self._generate_prompt_messages(
-                        message, dialog_messages, chat_mode, image_buffer
-                    )
-                    r = await aclient.chat.completions.create(
-                        model=self.model,
-                        messages=messages,
-                        **self.model_options
-                    )
-                    answer = r.choices[0].message.content
-                else:
-                    raise ValueError(f"Unsupported model: {self.model}")
-
-                answer = self._postprocess_answer(answer)
-                n_input_tokens, n_output_tokens = (
-                    r.usage.prompt_tokens,
-                    r.usage.completion_tokens,
-                )
-            except OpenAIError as e:  # too many tokens
-                if len(dialog_messages) == 0:
-                    raise ValueError(
-                        "Dialog messages is reduced to zero, but still has too many tokens to make completion"
-                    ) from e
-
-                # forget first message in dialog_messages
-                dialog_messages = dialog_messages[1:]
-
-        n_first_dialog_messages_removed = n_dialog_messages_before - len(
-            dialog_messages
-        )
-
-        return (
-            answer,
-            (n_input_tokens, n_output_tokens),
-            n_first_dialog_messages_removed,
-        )
 
     async def send_vision_message_stream(
             self,

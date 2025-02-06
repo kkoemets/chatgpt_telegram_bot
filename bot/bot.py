@@ -224,32 +224,12 @@ async def _vision_message_handle_fn(
         ]
 
         chatgpt_instance = openai_utils.ChatGPT(model=current_model, model_options=config.models["info"][current_model]['model_options'])
-        if config.enable_message_streaming:
-            gen = chatgpt_instance.send_vision_message_stream(
-                message,
-                dialog_messages=dialog_messages,
-                image_buffer=buf,
-                chat_mode=chat_mode,
-            )
-        else:
-            (
-                answer,
-                (n_input_tokens, n_output_tokens),
-                n_first_dialog_messages_removed,
-            ) = await chatgpt_instance.send_vision_message(
-                message,
-                dialog_messages=dialog_messages,
-                image_buffer=buf,
-                chat_mode=chat_mode,
-            )
-
-            async def fake_gen():
-                yield "finished", answer, (
-                    n_input_tokens,
-                    n_output_tokens,
-                ), n_first_dialog_messages_removed
-
-            gen = fake_gen()
+        gen = chatgpt_instance.send_vision_message_stream(
+            message,
+            dialog_messages=dialog_messages,
+            image_buffer=buf,
+            chat_mode=chat_mode,
+        )
 
         prev_answer = ""
         async for gen_item in gen:
@@ -313,7 +293,6 @@ async def _vision_message_handle_fn(
         db.update_n_used_tokens(user_id, current_model, n_input_tokens, n_output_tokens)
 
     except asyncio.CancelledError:
-        # note: intermediate token updates only work when enable_message_streaming=True (config.yml)
         db.update_n_used_tokens(user_id, current_model, n_input_tokens, n_output_tokens)
         raise
 
@@ -393,22 +372,8 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             }[config.chat_modes[chat_mode]["parse_mode"]]
 
             chatgpt_instance = openai_utils.ChatGPT(model=current_model, model_options=config.models["info"][current_model]['model_options'])
-            if config.enable_message_streaming:
-                gen = chatgpt_instance.send_message_stream(_message, dialog_messages=dialog_messages,
-                                                           chat_mode=chat_mode)
-            else:
-                answer, (
-                    n_input_tokens,
-                    n_output_tokens), n_first_dialog_messages_removed = await chatgpt_instance.send_message(
-                    _message,
-                    dialog_messages=dialog_messages,
-                    chat_mode=chat_mode
-                )
-
-                async def fake_gen():
-                    yield "finished", answer, (n_input_tokens, n_output_tokens), n_first_dialog_messages_removed
-
-                gen = fake_gen()
+            gen = chatgpt_instance.send_message_stream(_message, dialog_messages=dialog_messages,
+                                                       chat_mode=chat_mode)
 
             prev_answer = ""
 
@@ -448,7 +413,6 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             db.update_n_used_tokens(user_id, current_model, n_input_tokens, n_output_tokens)
 
         except asyncio.CancelledError:
-            # note: intermediate token updates only work when enable_message_streaming=True (config.yml)
             db.update_n_used_tokens(user_id, current_model, n_input_tokens, n_output_tokens)
             raise
 
