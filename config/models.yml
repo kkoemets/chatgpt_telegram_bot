@@ -30,7 +30,7 @@ info:
       top_p: 1.0
       frequency_penalty: 0.0
       presence_penalty: 0.0
-      timeout: 60.0
+      timeout: 600.0
 
     price_per_1000_input_tokens: 0.0025
     price_per_1000_output_tokens: 0.01
@@ -47,7 +47,7 @@ info:
     model_options:
       max_completion_tokens: 100000
       reasoning_effort: high
-      timeout: 60.0
+      timeout: 600.0
 
     price_per_1000_input_tokens: 0.0011
     price_per_1000_output_tokens: 0.0044

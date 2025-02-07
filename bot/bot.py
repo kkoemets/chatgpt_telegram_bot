@@ -15,7 +15,6 @@ from telegram import (
     InlineKeyboardMarkup,
     BotCommand
 )
-from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -65,6 +64,7 @@ To get a reply from the bot in the chat – @ <b>tag</b> it or <b>reply</b> to i
 For example: "{bot_username} write a poem about Telegram"
 """
 
+TELEGRAM_MESSAGE_MAX_LIMIT = 4096 - 500  # 500 symbols for additional text
 
 def split_text_into_chunks(text, chunk_size):
     for i in range(0, len(text), chunk_size):
@@ -240,7 +240,7 @@ async def _vision_message_handle_fn(
                 n_first_dialog_messages_removed,
             ) = gen_item
 
-            answer = answer[:4096]  # telegram message limit
+            answer = answer[:TELEGRAM_MESSAGE_MAX_LIMIT]  # telegram message limit
 
             # update only when 100 new symbols are ready
             if abs(len(answer) - len(prev_answer)) < 100 and status != "finished":
@@ -380,22 +380,55 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             async for gen_item in gen:
                 status, answer, (n_input_tokens, n_output_tokens), n_first_dialog_messages_removed = gen_item
 
-                answer = answer[:4096]  # telegram message limit
-
-                # update only when 100 new symbols are ready
                 if abs(len(answer) - len(prev_answer)) < 100 and status != "finished":
                     continue
 
-                try:
-                    await context.bot.edit_message_text(answer, chat_id=placeholder_message.chat_id,
-                                                        message_id=placeholder_message.message_id,
-                                                        parse_mode=parse_mode)
-                except telegram.error.BadRequest as e:
-                    if str(e).startswith("Message is not modified"):
+                if len(answer) >= TELEGRAM_MESSAGE_MAX_LIMIT and status != "finished":
+                    if (abs(len(answer) - len(prev_answer)) < 100):
                         continue
-                    else:
-                        await context.bot.edit_message_text(answer, chat_id=placeholder_message.chat_id,
-                                                            message_id=placeholder_message.message_id)
+
+                    prev_answer = answer
+                    await context.bot.edit_message_text(
+                        f"Message length is too long, about {len(answer)} symbols already. Please wait...",
+                        chat_id=placeholder_message.chat_id,
+                        message_id=placeholder_message.message_id,
+                        parse_mode=parse_mode
+                    )
+                    continue
+
+                if len(answer) >= TELEGRAM_MESSAGE_MAX_LIMIT:
+                    chunks = split_text_into_chunks(answer, TELEGRAM_MESSAGE_MAX_LIMIT)
+
+                    await context.bot.edit_message_text(
+                        "Sending separate message chunks...",
+                        chat_id=placeholder_message.chat_id,
+                        message_id=placeholder_message.message_id,
+                        parse_mode=parse_mode
+                    )
+
+                    for chunk in chunks:
+                        await context.bot.send_message(
+                            chat_id=placeholder_message.chat_id,
+                            text=chunk,
+                            parse_mode=parse_mode
+                        )
+                else:
+                    try:
+                        await context.bot.edit_message_text(
+                            answer,
+                            chat_id=placeholder_message.chat_id,
+                            message_id=placeholder_message.message_id,
+                            parse_mode=parse_mode
+                        )
+                    except telegram.error.BadRequest as e:
+                        if str(e).startswith("Message is not modified"):
+                            continue
+                        else:
+                            await context.bot.edit_message_text(
+                                answer,
+                                chat_id=placeholder_message.chat_id,
+                                message_id=placeholder_message.message_id
+                            )
 
                 await asyncio.sleep(0.01)  # wait a bit to avoid flooding
 
@@ -792,8 +825,7 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
             f"<pre>{html.escape(tb_string)}</pre>"
         )
 
-        # split text into multiple messages due to 4096 character limit
-        for message_chunk in split_text_into_chunks(message, 4096):
+        for message_chunk in split_text_into_chunks(message, TELEGRAM_MESSAGE_MAX_LIMIT):
             try:
                 await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
             except telegram.error.BadRequest:
@@ -820,6 +852,10 @@ def run_bot() -> None:
         ApplicationBuilder()
         .token(config.telegram_token)
         .concurrent_updates(True)
+        .pool_timeout(600)
+        .read_timeout(600)
+        .write_timeout(600)
+        .connect_timeout(600)
         .rate_limiter(AIORateLimiter(max_retries=5))
         .http_version("1.1")
         .get_updates_http_version("1.1")
