@@ -8,7 +8,9 @@ import openai
 import telegram
 from telegram import Update
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import CallbackContext
+from telegram.helpers import escape_markdown
 
 import config
 import database
@@ -236,7 +238,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
 
                     prev_answer = answer
                     await context.bot.edit_message_text(
-                        f"Message length is too long, about {len(answer)} symbols already. Please wait...",
+                        f"Message length is too long, about {len(answer)} symbols already. Please wait.",
                         chat_id=placeholder_message.chat_id,
                         message_id=placeholder_message.message_id,
                         parse_mode=parse_mode
@@ -247,18 +249,22 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                     chunks = split_text_into_chunks(answer, TELEGRAM_MESSAGE_MAX_LIMIT)
 
                     await context.bot.edit_message_text(
-                        "Sending separate message chunks...",
+                        "Sending separate message chunks.",
                         chat_id=placeholder_message.chat_id,
                         message_id=placeholder_message.message_id,
                         parse_mode=parse_mode
                     )
 
                     for chunk in chunks:
-                        await context.bot.send_message(
+                        try:
+                            await context.bot.send_message(
                             chat_id=placeholder_message.chat_id,
                             text=chunk,
-                            parse_mode=parse_mode
-                        )
+                            parse_mode=parse_mode)
+                        except BadRequest:
+                            await context.bot.send_message(
+                                chat_id=placeholder_message.chat_id,
+                                text=chunk)
                 else:
                     try:
                         await context.bot.edit_message_text(
