@@ -1,10 +1,11 @@
-
 import base64
 from io import BytesIO
+
 import openai
 from openai import AsyncOpenAI
 
 import config
+
 aclient = AsyncOpenAI(api_key=config.openai_api_key)
 if config.openai_api_base is not None:
     openai.api_base = config.openai_api_base
@@ -24,17 +25,11 @@ class ChatGPT:
         if chat_mode not in config.chat_modes.keys():
             raise ValueError(f"Chat mode {chat_mode} is not supported")
 
-        n_dialog_messages_before = len(dialog_messages)
         answer = None
         while answer is None:
             try:
                 messages = self._generate_prompt_messages(message, dialog_messages, chat_mode)
-                r_gen = await aclient.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    stream=True,
-                    **self.model_options
-                )
+                r_gen = await self.create_chat_completion(messages)
 
                 answer = ""
                 async for r_item in r_gen:
@@ -46,8 +41,8 @@ class ChatGPT:
                         content_piece = delta.get("content", "")
                     if content_piece != "":
                         answer += content_piece
-                        n_input_tokens, n_output_tokens = self._count_tokens_from_messages(messages, answer, model=self.model)
-
+                        n_input_tokens, n_output_tokens = self._count_tokens_from_messages(messages, answer,
+                                                                                           model=self.model)
                         n_first_dialog_messages_removed = 0
 
                         yield "not_finished", answer, (
@@ -79,25 +74,22 @@ class ChatGPT:
                         message, dialog_messages, chat_mode, image_buffer
                     )
 
-                    r_gen = await aclient.chat.completions.create(
-                        model=self.model,
-                        messages=messages,
-                        stream=True,
-                        **self.model_options
-                    )
+                    r_gen = await self.create_chat_completion(messages)
                     answer = ""
                     async for r_item in r_gen:
                         delta = r_item.choices[0].delta
                         if hasattr(delta, "content"):
-                            content_piece =  "" if delta.content is None else delta.content
+                            content_piece = "" if delta.content is None else delta.content
                         else:
                             content_piece = delta.get("content", "")
 
                         if content_piece != "":
                             answer += content_piece
-                            n_input_tokens, n_output_tokens = self._count_tokens_from_messages(messages, answer, model=self.model)
+                            n_input_tokens, n_output_tokens = self._count_tokens_from_messages(messages, answer,
+                                                                                               model=self.model)
                             n_first_dialog_messages_removed = n_dialog_messages_before - len(dialog_messages)
-                            yield "not_finished", answer, (n_input_tokens, n_output_tokens), n_first_dialog_messages_removed
+                            yield "not_finished", answer, (
+                                n_input_tokens, n_output_tokens), n_first_dialog_messages_removed
                 answer = self._postprocess_answer(answer)
             except OpenAIError as e:  # too many tokens
                 if len(dialog_messages) == 0:
@@ -195,6 +187,14 @@ class ChatGPT:
         n_output_tokens = 1 + len(encoding.encode(answer))
 
         return n_input_tokens, n_output_tokens
+
+    async def create_chat_completion(self, messages):
+        return await aclient.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            stream=True,
+            **self.model_options
+        )
 
 
 async def transcribe_audio(audio_file) -> str:
